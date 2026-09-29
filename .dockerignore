@@ -3,5 +3,5 @@
 **/obj
 data
 artifacts
-.env
+.env*
 certs

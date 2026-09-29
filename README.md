@@ -4,6 +4,16 @@ A Windows service and an authenticated control plane for executing raw PowerShel
 returning structured results, and supporting fast sequential diagnostics. .NET 10,
 SQLite, outbound WebSockets. No inbound endpoint port or logged-in user required.
 
+## Submission status
+
+The core implementation passed installed-service acceptance on Windows Server,
+including enrollment, execution, timeout/offline handling, reinstall identity,
+crash recovery, revocation, and a measured 735 ms p95 round trip. **Not all take-home
+requirements are verified yet:** the live AI provider rejected the supplied key
+with HTTP 401, and an actual Windows 10/11 reboot-without-login test remains open.
+The demo video is a labeled replay of CI evidence, not a completed live AI demo.
+See [validation evidence and remaining checks](docs/validation.md).
+
 ## Build and test
 
 Install the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), then:
@@ -114,6 +124,19 @@ termination; read `result.error`. Ambiguous execution is never automatically ret
 
 Python 3.10+; no pip packages required:
 
+Copy `.env.example` to `.env` in the repository root and fill in
+`OPENROUTER_API_KEY`, `RMM_API_KEY`, and `RMM_URL` locally. `.env` and `.env.*`
+are git-ignored (except the credential-free `.env.example`) and excluded from
+Docker build contexts. On macOS/Linux, run `chmod 600 .env`.
+Never paste real keys into scripts, README examples, or commits.
+
+The Python driver loads the repository-root `.env` regardless of your current
+directory. Existing environment variables take precedence; unset an old exported
+`OPENROUTER_API_KEY` to use a replacement in `.env`. Values are literal `KEY=value`
+strings with optional surrounding quotes; no shell expansion is performed.
+`.env` does not configure `dotnet run`; use the server environment settings above.
+Docker Compose reads its own `.env` automatically.
+
 ```powershell
 $env:RMM_URL = 'https://localhost:8443'
 # Python uses platform default CA trust; RMM_CA_FILE can point to a PEM CA bundle.
@@ -122,7 +145,7 @@ python tools/rmm.py run --device DEVICE_ID --script "Write-Output 'hello'"
 python tools/rmm.py run --device DEVICE_ID --script 'Start-Sleep 30' --timeout 1
 python tools/rmm.py diagnose --device DEVICE_ID
 python tools/rmm.py benchmark --device DEVICE_ID --count 20
-$env:OPENROUTER_API_KEY = 'set-via-secret-manager'
+# OPENROUTER_API_KEY is loaded from your local .env (or secret-manager environment).
 # Optional override; default is anthropic/claude-haiku-4.5:
 $env:OPENROUTER_MODEL = 'anthropic/claude-haiku-4.5'
 python tools/rmm.py ai --device DEVICE_ID --problem 'Why does this machine feel slow?'

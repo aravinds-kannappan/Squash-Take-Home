@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+from pathlib import Path
 import ssl
 import statistics
 import time
@@ -11,6 +12,27 @@ import urllib.parse
 import uuid
 
 TERMINAL = {"succeeded", "failed", "timed_out", "offline", "interrupted", "revoked"}
+
+
+def load_env(path=None):
+    """Load literal KEY=value settings; never execute/interpolate file contents."""
+    path = Path(path) if path is not None else Path(__file__).resolve().parents[1] / ".env"
+    if not path.is_file():
+        return
+    allowed = {"OPENROUTER_API_KEY", "OPENROUTER_MODEL", "ANTHROPIC_API_KEY",
+               "ANTHROPIC_MODEL", "RMM_URL", "RMM_API_KEY", "RMM_CA_FILE"}
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.strip()
+        if key not in allowed:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if value:
+            os.environ.setdefault(key, value)
 
 
 class Client:
@@ -156,6 +178,7 @@ def main():
     parser.add_argument("--count", type=int, default=20)
     parser.add_argument("--timeout", type=int, default=15)
     args = parser.parse_args()
+    load_env()
     if args.action != "devices" and not args.device:
         parser.error("--device is required")
     client = Client()

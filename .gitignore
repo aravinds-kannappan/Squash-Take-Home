@@ -8,6 +8,8 @@ artifacts/
 *.key
 *.pem
 .env
+.env.*
+!.env.example
 bootstrap.json
 certs/
 TestResults/

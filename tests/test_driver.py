@@ -4,6 +4,7 @@ import importlib.util
 import io
 import json
 import os
+import tempfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -14,6 +15,26 @@ spec.loader.exec_module(rmm)
 
 
 class DriverTests(unittest.TestCase):
+    def test_env_loads_literals_and_quoted_values(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
+            path = Path(directory) / ".env"
+            path.write_text('# comment\nOPENROUTER_API_KEY="example=key"\nRMM_URL=https://localhost:8443\nRMM_API_KEY=\'literal-$NOT_EXPANDED\'\n', encoding="utf-8")
+            rmm.load_env(path)
+            self.assertEqual(os.environ["OPENROUTER_API_KEY"], "example=key")
+            self.assertEqual(os.environ["RMM_API_KEY"], "literal-$NOT_EXPANDED")
+            self.assertEqual(os.environ["RMM_URL"], "https://localhost:8443")
+
+    def test_env_preserves_exported_values_and_ignores_unknown_keys(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"OPENROUTER_API_KEY": "existing"}, clear=True):
+            path = Path(directory) / ".env"
+            path.write_text('OPENROUTER_API_KEY=from-file\nPATH=untrusted\nRMM_CA_FILE=\nmalformed\n', encoding="utf-8")
+            rmm.load_env(path)
+            self.assertEqual(dict(os.environ), {"OPENROUTER_API_KEY": "existing"})
+
+    def test_missing_env_is_optional(self):
+        with tempfile.TemporaryDirectory() as directory:
+            rmm.load_env(Path(directory) / "missing")
+
     def test_openrouter_tool_loop(self):
         answers = [
             {"choices": [{"message": {"role": "assistant", "content": None, "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "run_diagnostic", "arguments": '{"script":"Get-Process"}'}}]}}]},
