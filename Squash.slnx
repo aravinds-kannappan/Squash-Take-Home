@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Contracts/Contracts.csproj" />
+    <Project Path="src/ControlPlane/ControlPlane.csproj" />
+    <Project Path="src/WindowsAgent/WindowsAgent.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Rmm.Tests/Rmm.Tests.csproj" />
+  </Folder>
+</Solution>

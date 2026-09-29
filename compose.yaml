@@ -1,0 +1,14 @@
+services:
+  control-plane:
+    build: .
+    ports: ["8443:8443"]
+    environment:
+      Rmm__ApiKey: ${RMM_API_KEY:?Set RMM_API_KEY}
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /certs/server.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: ${RMM_CERT_PASSWORD:?Set RMM_CERT_PASSWORD}
+    volumes:
+      - rmm-data:/data
+      - ./certs:/certs:ro
+    restart: unless-stopped
+volumes:
+  rmm-data:

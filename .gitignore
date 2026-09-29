@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+.vs/
+data/
+artifacts/
+*.db*
+*.pfx
+*.key
+*.pem
+.env
+bootstrap.json
+certs/
+TestResults/
+__pycache__/
