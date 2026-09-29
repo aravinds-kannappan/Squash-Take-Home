@@ -43,7 +43,7 @@ $cert = New-SelfSignedCertificate -DnsName localhost -CertStoreLocation Cert:\Lo
 Export-Certificate -Cert $cert -FilePath "$env:TEMP\squash-local.cer" | Out-Null
 Import-Certificate -FilePath "$env:TEMP\squash-local.cer" -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
 $env:ASPNETCORE_URLS = 'https://localhost:8443'
-$env:ASPNETCORE_Kestrel__Certificates__Default__Subject = $cert.Subject
+$env:ASPNETCORE_Kestrel__Certificates__Default__Subject = 'localhost'
 $env:ASPNETCORE_Kestrel__Certificates__Default__Store = 'My'
 $env:ASPNETCORE_Kestrel__Certificates__Default__Location = 'LocalMachine'
 $env:ASPNETCORE_Kestrel__Certificates__Default__AllowInvalid = 'true'

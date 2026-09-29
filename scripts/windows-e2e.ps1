@@ -63,18 +63,20 @@ try {
     Import-Certificate -FilePath $certFile -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
     $env:ASPNETCORE_URLS = $url
     $env:ASPNETCORE_ENVIRONMENT = 'Production'
-    $env:ASPNETCORE_Kestrel__Certificates__Default__Subject = $cert.Subject
-    $env:ASPNETCORE_Kestrel__Certificates__Default__Store = 'My'
-    $env:ASPNETCORE_Kestrel__Certificates__Default__Location = 'LocalMachine'
-    $env:ASPNETCORE_Kestrel__Certificates__Default__AllowInvalid = 'true'
+    $certPassword = [guid]::NewGuid().ToString('N')
+    Export-PfxCertificate -Cert $cert -FilePath "$private/server.pfx" -Password (ConvertTo-SecureString $certPassword -AsPlainText -Force) | Out-Null
+    $env:ASPNETCORE_Kestrel__Certificates__Default__Path = "$private/server.pfx"
+    $env:ASPNETCORE_Kestrel__Certificates__Default__Password = $certPassword
+    if ($env:GITHUB_ACTIONS) { Write-Host "::add-mask::$certPassword" }
     dotnet publish "$root/src/ControlPlane/ControlPlane.csproj" -c Release -o "$private/server" | Out-Host
     Assert ($LASTEXITCODE -eq 0) 'Control plane publish failed'
     $serverProcess = Start-Process dotnet -ArgumentList @((Join-Path $private 'server/ControlPlane.dll')) -PassThru -RedirectStandardOutput "$private/server.stdout" -RedirectStandardError "$private/server.stderr"
     $ready = $false
-    for ($i=0; $i -lt 100; $i++) {
-        try { $null = Api '/health'; $ready = $true; break } catch { Start-Sleep -Milliseconds 200 }
+    for ($i=0; $i -lt 15; $i++) {
+        if ($serverProcess.HasExited) { break }
+        try { $null = Invoke-RestMethod "$url/health" -TimeoutSec 2; $ready = $true; break } catch { Start-Sleep -Milliseconds 200 }
     }
-    if (!$ready) { Get-Content "$private/server.stderr"; throw 'HTTPS control plane did not start' }
+    if (!$ready) { Get-Content "$private/server.stdout", "$private/server.stderr"; throw 'HTTPS control plane did not start' }
     $identity = & $installer -Mode Prepare | ConvertFrom-Json
     $grant = Api '/v1/enrollment-grants' Post $identity
     $bootstrap = Join-Path $private 'bootstrap.json'

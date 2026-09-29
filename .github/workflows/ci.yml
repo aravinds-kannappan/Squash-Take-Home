@@ -2,18 +2,23 @@ name: build-and-test
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
       - run: dotnet test Squash.slnx -c Release --logger trx
+      - run: python -m unittest discover -s tests -p "test_*.py" -v
       - if: runner.os == 'Windows'
         shell: pwsh
         env:
