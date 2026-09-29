@@ -6,6 +6,9 @@ namespace Squash.Agent;
 
 public sealed class PowerShellRunner(string workDirectory)
 {
+    readonly SecretRedactor redactor = new(Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
+        .Where(e => new[] { "SECRET", "TOKEN", "PASSWORD", "API_KEY", "CREDENTIAL" }.Any(k => e.Key.ToString()!.Contains(k, StringComparison.OrdinalIgnoreCase)))
+        .Select(e => e.Value?.ToString() ?? "").Where(s => s.Length >= 8));
     public async Task<ExecutionResult> Run(JobPayload job, CancellationToken cancellation)
     {
         Directory.CreateDirectory(workDirectory);
@@ -21,14 +24,20 @@ public sealed class PowerShellRunner(string workDirectory)
                 UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
                 WorkingDirectory = workDirectory, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
             }};
-            // Explicit UTF-8 output; invoke unchanged source and propagate its exit code.
-            var bootstrap = "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); & '" + path.Replace("'", "''") + "'; $rmmSuccess = $?; if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }; if (-not $rmmSuccess) { exit 1 }";
+            // Script execution is gated until the process belongs to the Job Object.
+            // If the agent dies before assignment, only this fixed bootstrap runs;
+            // it times out without invoking user code.
+            var gateName = @"Local\SquashRmm-" + Guid.NewGuid().ToString("N");
+            using var executionGate = new EventWaitHandle(false, EventResetMode.ManualReset, gateName);
+            var bootstrap = "$rmmGate=[Threading.EventWaitHandle]::OpenExisting('" + gateName + "'); if(-not $rmmGate.WaitOne(10000)){exit 124}; $rmmGate.Dispose(); " +
+                "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); & '" + path.Replace("'", "''") + "'; $rmmSuccess = $?; if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }; if (-not $rmmSuccess) { exit 1 }";
             foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(bootstrap)) }) process.StartInfo.ArgumentList.Add(arg);
             // Never inherit bootstrap tokens or API keys into the script environment.
-            foreach (var key in process.StartInfo.Environment.Keys.Where(k => k.StartsWith("Rmm", StringComparison.OrdinalIgnoreCase) || k.Contains("API_KEY", StringComparison.OrdinalIgnoreCase)).ToArray())
+            foreach (var key in process.StartInfo.Environment.Keys.Where(k => k.StartsWith("Rmm", StringComparison.OrdinalIgnoreCase) || new[] { "SECRET", "TOKEN", "PASSWORD", "API_KEY", "CREDENTIAL" }.Any(s => k.Contains(s, StringComparison.OrdinalIgnoreCase))).ToArray())
                 process.StartInfo.Environment.Remove(key);
             process.Start();
             using var containment = WindowsJob.Attach(process);
+            executionGate.Set();
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
             deadline.CancelAfter(TimeSpan.FromSeconds(job.TimeoutSeconds));
             using var drainDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(job.TimeoutSeconds + 3));
@@ -45,7 +54,7 @@ public sealed class PowerShellRunner(string workDirectory)
             // Closing the Job Object kills children even if the parent exited successfully.
             containment.Dispose();
             var output = await stdout; var error = await stderr;
-            return new(status, process.ExitCode, output.Text, error.Text, clock.ElapsedMilliseconds, output.Truncated, error.Truncated, job.ScriptSha256);
+            return redactor.Clean(new ExecutionResult(status, process.ExitCode, output.Text, error.Text, clock.ElapsedMilliseconds, output.Truncated, error.Truncated, job.ScriptSha256));
         }
         catch (Exception e) when (e is IOException or System.ComponentModel.Win32Exception or InvalidOperationException or OperationCanceledException)
         { return new("failed", null, "", "", clock.ElapsedMilliseconds, false, false, job.ScriptSha256, "PowerShell could not complete. Check endpoint service permissions."); }

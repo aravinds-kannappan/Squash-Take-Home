@@ -10,6 +10,22 @@ namespace Rmm.Tests;
 
 public sealed class ExecutionTests
 {
+    [Theory]
+    [InlineData("password=hunter22")]
+    [InlineData("Authorization: Bearer abcdefghijklmnopqrstuvwxyz")]
+    [InlineData("ghp_abcdefghijklmnopqrstuvwxyz1234567890")]
+    [InlineData("-----BEGIN PRIVATE KEY-----\nprivate-bytes\n-----END PRIVATE KEY-----")]
+    public void CommonCredentialFormatsAreScrubbed(string value)
+    {
+        var redactor = new SecretRedactor([]);
+        Assert.True(redactor.ContainsSecret(value));
+        Assert.Equal("[REDACTED]", redactor.Clean(value));
+    }
+    [Fact] public void RedactionCannotExpandBeyondOutputLimit()
+    {
+        var result = new SecretRedactor(["x"]).Clean(new ExecutionResult("succeeded", 0, new string('x', Protocol.MaxOutputBytes), "", 1, false, false, "hash"));
+        Assert.True(result.StdoutTruncated); Assert.True(Encoding.UTF8.GetByteCount(result.Stdout) <= Protocol.MaxOutputBytes);
+    }
     [Fact] public void KnownSecretsAreRedactedFromResults()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Rmm:ApiKey"] = "test-secret-key" }).Build();

@@ -4,14 +4,10 @@ namespace Squash.ControlPlane;
 
 public sealed class ResultRedactor(IConfiguration configuration)
 {
-    readonly string[] secrets = new[] { configuration["Rmm:ApiKey"] }
+    readonly SecretRedactor redactor = new(new[] { configuration["Rmm:ApiKey"] }
         .Concat(configuration.GetSection("Rmm:RedactSecrets").Get<string[]>() ?? [])
-        .Where(s => !string.IsNullOrEmpty(s)).Select(s => s!).Distinct().ToArray();
-    public string Clean(string text)
-    {
-        foreach (var secret in secrets) text = text.Replace(secret, "[REDACTED]", StringComparison.Ordinal);
-        return text;
-    }
-    public ExecutionResult Clean(ExecutionResult result) => result with
-    { Stdout = Clean(result.Stdout), Stderr = Clean(result.Stderr), Error = result.Error is null ? null : Clean(result.Error) };
+        .Where(s => !string.IsNullOrEmpty(s)).Select(s => s!));
+    public string Clean(string text) => redactor.Clean(text);
+    public bool ContainsSecret(string text) => redactor.ContainsSecret(text);
+    public ExecutionResult Clean(ExecutionResult result) => redactor.Clean(result);
 }

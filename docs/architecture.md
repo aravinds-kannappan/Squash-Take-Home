@@ -6,8 +6,10 @@ The Windows service initiates TLS WebSockets to the control plane. This works
 behind NAT and avoids command polling. A random challenge is signed by the
 device's P-256 key. The server verifies it against its enrolled public key before
 creating a dispatch session. A second authenticated connection replaces the first.
-Five-second heartbeats update presence; 20 seconds of silence means offline and
-25 seconds closes an idle connection. Reconnect uses jittered exponential backoff.
+Five-second heartbeats receive server acknowledgements; 20 seconds of silence
+means offline and both sides enforce a 25-second receive deadline. Reconnect uses
+jittered exponential backoff. Persisted result acknowledgements avoid replaying
+all historical output after every reconnect.
 
 A 100 ms server dispatcher scans durable queued jobs and pushes to online devices.
 Only one job per device is in flight. API clients poll job results at 50 ms in the
@@ -64,7 +66,8 @@ Script files contain the exact characters plus a UTF-8 encoding BOM. PowerShell
 arguments use argument-list APIs. A fixed encoded bootstrap sets UTF-8 output,
 invokes the unchanged script file through a quoted path, and propagates exit codes.
 A Windows
-Job Object kills child processes when its handle closes; timeout also kills the
+Job Object kills child processes when its handle closes. A named-event gate in
+the bootstrap prevents user code from running before assignment. Timeout also kills the
 process tree. Each stream is drained continuously and retained up to 64 KiB.
 No interpretation or automatic remediation occurs in the control plane or agent.
 

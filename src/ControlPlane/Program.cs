@@ -61,13 +61,14 @@ app.MapPost("/v1/agents/enroll", (EnrollRequest request, Store store, ServerKey 
 app.MapGet("/v1/devices", (Store s, AgentHub h) => s.Devices().Select(d => new { d.Id, d.Hostname, d.MachineId, d.Revoked, d.LastSeen, online = h.Online(d.Id) }));
 app.MapGet("/v1/devices/{id}", (string id, Store s, AgentHub h) => s.Device(id) is { } d ? Results.Ok(new { d.Id, d.Hostname, d.MachineId, d.Revoked, d.LastSeen, online = h.Online(id) }) : Results.NotFound());
 app.MapPost("/v1/devices/{id}/revoke", (string id, Store s, AgentHub h) => { if (!s.Revoke(id)) return Results.NotFound(); h.Disconnect(id); return Results.NoContent(); });
-app.MapPost("/v1/devices/{id}/executions", (string id, ExecutionRequest request, HttpContext context, Store store) =>
+app.MapPost("/v1/devices/{id}/executions", (string id, ExecutionRequest request, HttpContext context, Store store, ResultRedactor redactor) =>
 {
     if (store.Device(id) is not { Revoked: false }) return Results.NotFound();
     var idem = context.Request.Headers["Idempotency-Key"].ToString();
-    if (idem.Length is < 1 or > 128 || string.IsNullOrWhiteSpace(request.Script) || request.Script.Contains(apiKey, StringComparison.Ordinal) || Encoding.UTF8.GetByteCount(request.Script) > Protocol.MaxScriptBytes ||
+    if (idem.Length is < 1 or > 128 || string.IsNullOrWhiteSpace(request.Script) || Encoding.UTF8.GetByteCount(request.Script) > Protocol.MaxScriptBytes ||
         request.TimeoutSeconds is < 1 or > 300 || request.DispatchTimeoutSeconds is < 1 or > 300)
         return Results.BadRequest(new { error = "Require Idempotency-Key, script ≤32768 UTF-8 bytes, and timeouts of 1–300 seconds." });
+    if (redactor.ContainsSecret(request.Script)) return Results.BadRequest(new { error = "Script appears to contain a credential. Submit source without embedded secrets." });
     try { var (job, created) = store.Create(id, idem, request, "operator"); return created ? Results.Accepted($"/v1/executions/{job.Id}", job) : Results.Ok(job); }
     catch (InvalidOperationException) { return Results.Conflict(new { error = "Idempotency key already used for a different request." }); }
 });

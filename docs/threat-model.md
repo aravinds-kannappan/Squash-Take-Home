@@ -42,8 +42,10 @@ we can contain in this prototype. Output from endpoints is always untrusted.
 
 ## Secrets and remaining limitations
 
-The server redacts its API key and configured `Rmm__RedactSecrets__0`, etc. from
-results before persistence, and rejects scripts containing its API key. The agent
+Both sides redact common credential formats before persistence. The endpoint also
+redacts sensitive environment values and removes those variables from child
+processes. The server redacts its API key and configured `Rmm__RedactSecrets__0`,
+etc., and rejects scripts that appear to embed credentials. The agent
 never receives the operator or LLM API key. Bootstrap values and private
 keys are not logged; errors omit sensitive request/exception content. Installer
 bootstrap files must be transferred and staged securely, and are deleted after use.
@@ -61,9 +63,10 @@ key remain possible. Endpoint results are not malware-scanned or semantically
 trusted. A malicious administrator can tamper with the local ledger or use the
 key through the OS; non-exportable does not mean unavailable to an administrator.
 
-PowerShell starts immediately before assignment to its Job Object. This leaves a
-small launch-to-assignment race; production containment should use suspended
-creation and assign before resume. It is not a defense against a deliberately
+PowerShell's fixed bootstrap waits on a per-job named event; the agent releases it
+only after Job Object assignment. User code cannot run in the launch-to-assignment
+window. The bootstrap exits after ten seconds if the agent dies before assignment.
+This is not a defense against a deliberately
 malicious authorized SYSTEM script, which can schedule work through other services.
 
 The sample AI driver requests read-only diagnostics and ignores instructions in
