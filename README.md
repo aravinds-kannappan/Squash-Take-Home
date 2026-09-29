@@ -10,9 +10,13 @@ The core implementation passed installed-service acceptance on Windows Server,
 including enrollment, execution, timeout/offline handling, reinstall identity,
 crash recovery, revocation, and a measured 735 ms p95 round trip. **Not all take-home
 requirements are verified yet:** the live AI provider rejected the supplied key
-with HTTP 401, and an actual Windows 10/11 reboot-without-login test remains open.
+with HTTP 401 (`API key expired.`), and an actual Windows 10/11 reboot-without-login test remains open.
 The demo video is a labeled replay of CI evidence, not a completed live AI demo.
 See [validation evidence and remaining checks](docs/validation.md).
+
+[Download the demo video on GitHub](https://github.com/aravinds-kannappan/Squash-Take-Home/releases/download/demo-evidence-v1/squash-demo.mp4)
+([release details](https://github.com/aravinds-kannappan/Squash-Take-Home/releases/tag/demo-evidence-v1)).
+This video replays Windows CI run `36508348442` and explicitly shows the pending AI demo.
 
 ## Build and test
 

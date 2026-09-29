@@ -45,6 +45,10 @@ same VM (these are not WAN latency measurements):
 The generated `summary.json` reports `core_passed_ai_blocked`. The workflow is
 intentionally **not green**: its live OpenRouter request returned **HTTP 401**.
 The supplied key was independently rejected by OpenRouter's `/api/v1/key` endpoint.
+Further diagnosis confirmed the provider's exact reason: `API key expired.`
+No existing environment variable overrode the local key, and the loaded key had
+the expected prefix and no whitespace. Replace the expired credential with an
+active key; changing the model or retrying the same credential cannot fix expiry.
 The replacement in local git-ignored `.env` was checked again and still returned
 401; the repository Actions secret was synchronized without exposing its value.
 No successful live AI investigation is claimed. The integration code is exercised
