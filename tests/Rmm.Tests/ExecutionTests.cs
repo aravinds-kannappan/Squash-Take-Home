@@ -65,6 +65,19 @@ public sealed class ExecutionTests
         }
         Directory.Delete(directory, true);
     }
+    [Fact] public void DeviceCannotCompleteAnotherDevicesJob()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "squash-store-" + Guid.NewGuid().ToString("N"));
+        using (var store = new Store(Path.Combine(directory, "test.db")))
+        {
+            var job = store.Create("device-a", "key", new ExecutionRequest("exit 0"), "test").Job;
+            store.Dispatch(job.Id);
+            var result = new ExecutionResult("succeeded", 0, "spoofed", "", 1, false, false, job.ScriptSha256);
+            Assert.False(store.Complete(job.Id, result, "device-b"));
+            Assert.Equal("dispatched", store.Job(job.Id)!.Status);
+        }
+        Directory.Delete(directory, true);
+    }
     [WindowsFact] public async Task RealPowerShellReturnsOutputAndNonzeroExit()
     {
         var dir = Path.Combine(Path.GetTempPath(), "squash-run-" + Guid.NewGuid().ToString("N"));

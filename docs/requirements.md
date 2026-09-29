@@ -28,7 +28,7 @@ chat UI, approval workflow, patch management, antivirus, or remote desktop.
 | Endpoint output is untrusted | Stored as data; never parsed as executable instructions by agent/server. Caller AI has an explicit untrusted-data boundary. |
 | Secrets excluded from logs/output/errors | No credential logging; configured secrets and common formats redacted before persistence; obvious embedded credentials rejected from source. Unknown arbitrary secrets cannot be perfectly recognized; see threat model. |
 | Hung endpoint cannot hang control plane | Independent watchdog and bounded network/handshake/runtime deadlines. |
-| Minimal LLM driver | `tools/rmm.py ai` implements a bounded Claude tool loop. Offline protocol tests pass; live run requires configured API key and model. |
+| Minimal LLM driver | `tools/rmm.py ai` implements bounded OpenRouter and direct Anthropic tool loops. Offline protocol tests pass; the Windows workflow exercises the configured provider. |
 | Demo video | `tools/render_demo.py` generates an explicitly labeled replay of actual Windows CI evidence. A full live-AI segment requires credentials. |
 | Source zip including `.git` | `python scripts/package-source.py`; preserves history and sanitizes Git credential configuration. |
 | Setup under 30 minutes | README setup and unattended installer, assuming a Windows host, SDK and HTTPS certificate are available. E2E measures its own elapsed duration. |
@@ -39,8 +39,9 @@ chat UI, approval workflow, patch management, antivirus, or remote desktop.
 1. The actual reboot on a Windows 10/11 VM cannot be exercised on this Mac or by
    rebooting the managed GitHub runner mid-job. SCM auto-start is configured and
    service recovery is covered separately.
-2. A live LLM run needs an API credential. Tests using canned provider responses
-   verify integration behavior, not live model behavior.
+2. The supplied OpenRouter credential was rejected with HTTP 401 both by the live
+   driver and OpenRouter's own `/api/v1/key` endpoint. A valid replacement is needed
+   for the live LLM demonstration. Offline tests do not count as that demonstration.
 3. GitHub's Windows runner is Windows Server, so Windows 10/11 installation should
    still be rehearsed before sending the take-home.
 

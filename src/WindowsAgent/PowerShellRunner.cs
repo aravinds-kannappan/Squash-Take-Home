@@ -31,7 +31,7 @@ public sealed class PowerShellRunner(string workDirectory)
             using var executionGate = new EventWaitHandle(false, EventResetMode.ManualReset, gateName);
             var bootstrap = "$rmmGate=[Threading.EventWaitHandle]::OpenExisting('" + gateName + "'); if(-not $rmmGate.WaitOne(10000)){exit 124}; $rmmGate.Dispose(); " +
                 "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); & '" + path.Replace("'", "''") + "'; $rmmSuccess = $?; if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }; if (-not $rmmSuccess) { exit 1 }";
-            foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(bootstrap)) }) process.StartInfo.ArgumentList.Add(arg);
+            foreach (var arg in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-OutputFormat", "Text", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(bootstrap)) }) process.StartInfo.ArgumentList.Add(arg);
             // Never inherit bootstrap tokens or API keys into the script environment.
             foreach (var key in process.StartInfo.Environment.Keys.Where(k => k.StartsWith("Rmm", StringComparison.OrdinalIgnoreCase) || new[] { "SECRET", "TOKEN", "PASSWORD", "API_KEY", "CREDENTIAL" }.Any(s => k.Contains(s, StringComparison.OrdinalIgnoreCase))).ToArray())
                 process.StartInfo.Environment.Remove(key);

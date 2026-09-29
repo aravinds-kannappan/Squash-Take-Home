@@ -57,7 +57,7 @@ public sealed class IntegrationTests
     }
     static async Task<Execution> Wait(HttpClient c, string id)
     {
-        for (var i = 0; i < 100; i++) { var j = (await c.GetFromJsonAsync<Execution>($"/v1/executions/{id}"))!; if (States.Terminal.Contains(j.Status)) return j; await Task.Delay(50); }
+        for (var i = 0; i < 180; i++) { var j = (await c.GetFromJsonAsync<Execution>($"/v1/executions/{id}"))!; if (States.Terminal.Contains(j.Status)) return j; await Task.Delay(50); }
         throw new TimeoutException("Job did not reach a terminal state.");
     }
     [Fact] public async Task ApiRequiresAuthenticationAndHttps()
@@ -139,5 +139,19 @@ public sealed class IntegrationTests
         using var message = new HttpRequestMessage(HttpMethod.Post, $"/v1/devices/{device.DeviceId}/executions") { Content = JsonContent.Create(new ExecutionRequest("Write-Output '" + Factory.ApiKey + "'")) };
         message.Headers.Add("Idempotency-Key", "secret");
         Assert.Equal(HttpStatusCode.BadRequest, (await c.SendAsync(message)).StatusCode);
+    }
+    [Fact] public async Task HungEndpointCannotLeaveJobRunningForever()
+    {
+        await using var f = new Factory(); using var c = f.Client(); var (key, device) = await Enroll(c); using var k = key;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        using var ws = await f.Server.CreateWebSocketClient().ConnectAsync(new Uri("wss://localhost/v1/agent/connect"), deadline.Token);
+        var challenge = (await Protocol.Receive(ws, deadline.Token))!;
+        await Protocol.Send(ws, new Wire("authenticate", DeviceId: device.DeviceId, Signature: Protocol.Sign(k, Protocol.ConnectionProof(device.DeviceId, challenge.Nonce!))), deadline.Token);
+        Assert.Equal("authenticated", (await Protocol.Receive(ws, deadline.Token))!.Type);
+        var job = await Dispatch(c, device.DeviceId, "hung", new ExecutionRequest("Start-Sleep 999", 1));
+        Assert.Equal("execute", (await Protocol.Receive(ws, deadline.Token))!.Type);
+        var done = await Wait(c, job.Id);
+        Assert.Equal("timed_out", done.Status); Assert.Contains("uncertain", done.Result!.Error);
+        Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/v1/devices")).StatusCode);
     }
 }

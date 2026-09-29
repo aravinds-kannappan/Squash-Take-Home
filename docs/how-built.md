@@ -11,8 +11,16 @@ and enrollment security, then packaging and demo support. Restore/build/test
 feedback drove corrections. The first package restore surfaced vulnerable baseline
 dependencies; package versions were updated rather than suppressing security audits.
 
-Validation is split honestly: API/WebSocket/store tests run on macOS; real
-PowerShell/service/installer and reboot verification require Windows. The demo
-driver's live LLM path requires user-supplied credentials. See the session handoff
-for observed test counts and artifact paths. Record actual total time and Windows
-validation results here before submitting.
+Validation began with API/WebSocket/store tests on macOS, then moved to GitHub's
+Windows runner for real PowerShell, the installer, the service, crash recovery and
+latency. Windows CI surfaced SQLite connection-pool retention and short-lived
+antivirus file locks; these were fixed without suppressing failures. Its live AI
+step uses the user-provided OpenRouter credential stored as an Actions secret.
+The secret is not part of source or submission archives.
+
+The source archive includes sanitized Git history. A demo renderer builds an
+explicitly labeled replay from recorded Windows CI commands and results. An actual
+Windows 10/11 reboot still needs a suitable VM and is not claimed by these tests.
+See CI evidence and the session handoff for measured results. Work spanned the
+initial build session plus the subsequent audit/CI iteration; Git commit timestamps
+provide the recorded implementation timeline.

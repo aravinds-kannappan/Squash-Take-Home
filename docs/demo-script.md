@@ -17,14 +17,15 @@ package, operator API key. Record no credentials or bootstrap token.
    determines the next command, and its top process ID determines the third.
    Show each measured round-trip time. Run the 20-command benchmark and report
    the actual median/p95, including any misses of the two-second target.
-5. Set Claude credentials off camera. Run the AI command with a plain-English
+5. Set OpenRouter credentials off camera. Run the AI command with a plain-English
    problem. Show generated API investigations and the final evidence-based report.
 6. Revoke the device. Show it offline and subsequent script submission rejected.
 
 Before submission: run Windows CI/tests, replay this flow from a fresh install,
 capture the real Windows timings, and record the video. No Windows VM or live LLM
-credential was available during the initial macOS build; do not present a simulated
-protocol test as these real-world demo steps.
+credential was available during the initial macOS build. Subsequent GitHub Windows
+CI exercises the actual service and uses the supplied OpenRouter secret. Do not
+present a simulated protocol test as these real-world demo steps; use CI evidence.
 
 Deliver a zip including `.git` history and source (exclude secrets, keys, databases,
 `bin`, `obj` and local configuration), the Windows package, demo video, README,

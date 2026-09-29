@@ -162,18 +162,21 @@ try {
     Assert ($stats.p95Ms -le 2000) "P95 latency exceeded 2 seconds: $($stats.p95Ms) ms"
 
     $hasLlm = [bool]($env:OPENROUTER_API_KEY -or ($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL))
+    $aiPassed = $false
     if ($hasLlm) {
         python "$root/tools/rmm.py" ai --device $id --problem 'Why does this machine feel slow?' | Tee-Object "$evidence/ai-transcript.txt"
-        Assert ($LASTEXITCODE -eq 0) 'Live AI driver failed'
-        Record 'Live AI investigation' 'python tools/rmm.py ai --device DEVICE --problem ...' (Get-Content "$evidence/ai-transcript.txt" -Raw)
+        $aiPassed = $LASTEXITCODE -eq 0
+        if ($aiPassed) { Record 'Live AI investigation' 'python tools/rmm.py ai --device DEVICE --problem ...' (Get-Content "$evidence/ai-transcript.txt" -Raw) }
+        else { Record 'Live AI provider rejected the request' 'python tools/rmm.py ai --device DEVICE --problem ...' @{completed=$false;error='See provider HTTP status in workflow logs; no AI result is claimed.'} }
     } else { Record 'Live AI demo pending credentials' 'OPENROUTER_API_KEY or Anthropic credentials required' @{executed=$false} }
     $null = Api "/v1/devices/$id/revoke" Post
     $revoked = Wait-Online $id $false
     Assert $revoked.revoked 'Revocation did not persist'
     Record 'Device revocation' 'POST /v1/devices/{id}/revoke' $revoked
-    @{status='passed';deviceId=$id;elapsedSeconds=$start.Elapsed.TotalSeconds;rebootTested=$false;liveAiTested=$hasLlm} | ConvertTo-Json | Set-Content "$evidence/summary.json" -Encoding utf8
+    @{status=$(if ($hasLlm -and !$aiPassed) {'core_passed_ai_blocked'} else {'passed'});deviceId=$id;elapsedSeconds=$start.Elapsed.TotalSeconds;rebootTested=$false;liveAiTested=$aiPassed} | ConvertTo-Json | Set-Content "$evidence/summary.json" -Encoding utf8
+    Assert (!$hasLlm -or $aiPassed) 'Core acceptance passed; live AI provider request failed. Check configured credentials.'
 } catch {
-    @{status='failed';error=$_.Exception.Message} | ConvertTo-Json | Set-Content "$evidence/summary.json" -Encoding utf8
+    if (!(Test-Path "$evidence/summary.json")) { @{status='failed';error=$_.Exception.Message} | ConvertTo-Json | Set-Content "$evidence/summary.json" -Encoding utf8 }
     # Application logs contain only status; never print bootstrap or environment.
     if (Test-Path "$private/server.stderr") { Get-Content "$private/server.stderr" }
     Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-20)} -ErrorAction SilentlyContinue | Where-Object {$_.ProviderName -match 'Squash|\.NET Runtime'} | Select-Object -First 5 TimeCreated,Message | Format-List | Out-Host

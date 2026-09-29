@@ -7,6 +7,7 @@ import statistics
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 import uuid
 
 TERMINAL = {"succeeded", "failed", "timed_out", "offline", "interrupted", "revoked"}
@@ -182,4 +183,4 @@ if __name__ == "__main__":
         main()
     except urllib.error.HTTPError as error:
         # Don't expose request headers or provider response bodies containing secrets.
-        raise SystemExit(f"Request failed with HTTP {error.code}") from None
+        raise SystemExit(f"Request to {urllib.parse.urlparse(error.url).hostname} failed with HTTP {error.code}") from None

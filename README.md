@@ -122,14 +122,17 @@ python tools/rmm.py run --device DEVICE_ID --script "Write-Output 'hello'"
 python tools/rmm.py run --device DEVICE_ID --script 'Start-Sleep 30' --timeout 1
 python tools/rmm.py diagnose --device DEVICE_ID
 python tools/rmm.py benchmark --device DEVICE_ID --count 20
-$env:ANTHROPIC_API_KEY = 'set-via-secret-manager'
-$env:ANTHROPIC_MODEL = 'your-enabled-Claude-model-ID'
+$env:OPENROUTER_API_KEY = 'set-via-secret-manager'
+# Optional override; default is anthropic/claude-haiku-4.5:
+$env:OPENROUTER_MODEL = 'anthropic/claude-haiku-4.5'
 python tools/rmm.py ai --device DEVICE_ID --problem 'Why does this machine feel slow?'
 ```
 
 The deterministic diagnosis inspects memory, chooses CPU or memory ranking based
 on that result, then inspects the selected process. Each step prints elapsed time.
-The AI driver uses Claude tool calls, with six executions and ten turns maximum.
+The AI driver uses OpenRouter tool calls, with six executions and ten turns maximum.
+Direct Anthropic is also supported with `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`
+when `OPENROUTER_API_KEY` is absent.
 Its read-only instruction is a prompt, **not a security sandbox**. Use a disposable
 VM. Endpoint results sent to the LLM may contain sensitive device data; the calling
 application owns provider/privacy policy and approvals.
@@ -189,8 +192,8 @@ Windows Server environment; it is not a substitute for a final Windows 10/11 reb
 Run it yourself from elevated PowerShell with `./scripts/windows-e2e.ps1`. It uses
 a temporary trusted localhost certificate and cleans up its own service and data.
 Use a disposable test machine: the script installs and removes the `SquashRmm`
-service. For a live AI run, set the `ANTHROPIC_API_KEY` Actions secret and
-`ANTHROPIC_MODEL` repository variable, then dispatch the workflow again.
+service. For a live AI run, set the `OPENROUTER_API_KEY` Actions secret (optionally
+`OPENROUTER_MODEL` as a repository variable), then dispatch the workflow again.
 
 ```sh
 python scripts/package-source.py
