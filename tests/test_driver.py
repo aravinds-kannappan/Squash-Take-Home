@@ -14,6 +14,23 @@ spec.loader.exec_module(rmm)
 
 
 class DriverTests(unittest.TestCase):
+    def test_openrouter_tool_loop(self):
+        answers = [
+            {"choices": [{"message": {"role": "assistant", "content": None, "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "run_diagnostic", "arguments": '{"script":"Get-Process"}'}}]}}]},
+            {"choices": [{"message": {"role": "assistant", "content": "Finding supported by abc."}}]},
+        ]
+        requests = []
+        def provider(request, **kwargs):
+            self.assertEqual(request.full_url, "https://openrouter.ai/api/v1/chat/completions")
+            requests.append(json.loads(request.data))
+            return io.BytesIO(json.dumps(answers.pop(0)).encode())
+        class Endpoint:
+            def execute(self, device, script):
+                return {"id": "abc", "status": "succeeded", "result": {"stdout": "observation"}}, 123
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "offline-test-placeholder"}), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
+            rmm.ai_driver(Endpoint(), "device", "Investigate")
+        self.assertEqual(requests[1]["messages"][-1]["role"], "tool")
+        self.assertEqual(requests[1]["messages"][-1]["tool_call_id"], "call_1")
     def test_llm_tool_result_is_returned_as_untrusted_data(self):
         answers = [
             {"content": [{"type": "tool_use", "id": "call_1", "name": "run_diagnostic", "input": {"script": "Get-Process | Select-Object -First 1"}}]},
@@ -32,7 +49,7 @@ class DriverTests(unittest.TestCase):
                 return {"id": "abc", "status": "succeeded", "result": {"stdout": "untrusted endpoint output"}}, 123
 
         endpoint = Endpoint()
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "offline-test-placeholder", "ANTHROPIC_MODEL": "offline-test-model"}), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "", "ANTHROPIC_API_KEY": "offline-test-placeholder", "ANTHROPIC_MODEL": "offline-test-model"}), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
             rmm.ai_driver(endpoint, "device", "Why is this machine slow?")
         self.assertEqual(endpoint.calls, [("device", "Get-Process | Select-Object -First 1")])
         tool_result = requests[1]["messages"][-1]["content"][0]

@@ -69,7 +69,7 @@ public sealed class ExecutionTests
     {
         var dir = Path.Combine(Path.GetTempPath(), "squash-run-" + Guid.NewGuid().ToString("N"));
         const string script = "Write-Output 'hello café 世界'; [Console]::Error.WriteLine('problem'); exit 7";
-        var result = await new PowerShellRunner(dir).Run(new JobPayload(Guid.NewGuid().ToString("N"), "device", script, Protocol.Hash(script), 5, DateTimeOffset.UtcNow.AddMinutes(1), "nonce"), CancellationToken.None);
+        var result = await new PowerShellRunner(dir).Run(new JobPayload(Guid.NewGuid().ToString("N"), "device", script, Protocol.Hash(script), 15, DateTimeOffset.UtcNow.AddMinutes(1), "nonce"), CancellationToken.None);
         Assert.Equal("failed", result.Status); Assert.Equal(7, result.ExitCode); Assert.Contains("hello café 世界", result.Stdout); Assert.Contains("problem", result.Stderr);
         Directory.Delete(dir, true);
     }

@@ -27,7 +27,16 @@ public sealed class Factory : WebApplicationFactory<Program>
         if (auth) c.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey);
         return c;
     }
-    public override async ValueTask DisposeAsync() { await base.DisposeAsync(); if (Directory.Exists(Data)) Directory.Delete(Data, true); }
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        // Windows Defender can briefly retain a scan handle after SQLite closes.
+        for (var attempt = 0; Directory.Exists(Data); attempt++)
+        {
+            try { Directory.Delete(Data, true); }
+            catch (IOException) when (attempt < 10) { await Task.Delay(100); }
+        }
+    }
 }
 
 public sealed class IntegrationTests

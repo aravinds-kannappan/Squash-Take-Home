@@ -161,16 +161,17 @@ try {
     Record 'Measured Windows execution latency' '20 sequential PowerShell executions through HTTPS API' $stats
     Assert ($stats.p95Ms -le 2000) "P95 latency exceeded 2 seconds: $($stats.p95Ms) ms"
 
-    if ($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL) {
+    $hasLlm = [bool]($env:OPENROUTER_API_KEY -or ($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL))
+    if ($hasLlm) {
         python "$root/tools/rmm.py" ai --device $id --problem 'Why does this machine feel slow?' | Tee-Object "$evidence/ai-transcript.txt"
         Assert ($LASTEXITCODE -eq 0) 'Live AI driver failed'
         Record 'Live AI investigation' 'python tools/rmm.py ai --device DEVICE --problem ...' (Get-Content "$evidence/ai-transcript.txt" -Raw)
-    } else { Record 'Live AI demo pending credentials' 'ANTHROPIC_API_KEY and ANTHROPIC_MODEL required' @{executed=$false} }
+    } else { Record 'Live AI demo pending credentials' 'OPENROUTER_API_KEY or Anthropic credentials required' @{executed=$false} }
     $null = Api "/v1/devices/$id/revoke" Post
     $revoked = Wait-Online $id $false
     Assert $revoked.revoked 'Revocation did not persist'
     Record 'Device revocation' 'POST /v1/devices/{id}/revoke' $revoked
-    @{status='passed';deviceId=$id;elapsedSeconds=$start.Elapsed.TotalSeconds;rebootTested=$false;liveAiTested=[bool]($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL)} | ConvertTo-Json | Set-Content "$evidence/summary.json" -Encoding utf8
+    @{status='passed';deviceId=$id;elapsedSeconds=$start.Elapsed.TotalSeconds;rebootTested=$false;liveAiTested=$hasLlm} | ConvertTo-Json | Set-Content "$evidence/summary.json" -Encoding utf8
 } catch {
     @{status='failed';error=$_.Exception.Message} | ConvertTo-Json | Set-Content "$evidence/summary.json" -Encoding utf8
     # Application logs contain only status; never print bootstrap or environment.

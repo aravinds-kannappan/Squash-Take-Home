@@ -174,4 +174,30 @@ Every operator route uses `Authorization: Bearer ...`. OpenAPI is available at
 | `WSS /v1/agent/connect` | Agent-only signed challenge authentication |
 
 See [design notes](docs/architecture.md), [threat model](docs/threat-model.md),
-[demo script](docs/demo-script.md), and [build notes](docs/how-built.md).
+[demo script](docs/demo-script.md), [build notes](docs/how-built.md), and the
+[requirement-by-requirement audit](docs/requirements.md).
+
+## Automated Windows acceptance and submission artifacts
+
+GitHub Actions runs the full suite on Linux and Windows, then installs the actual
+Windows service and exercises enrollment, Unicode output, duplicate submissions,
+timeout, output truncation, offline handling, uninstall/reinstall, automatic crash
+recovery, dependent diagnosis, latency measurement, and revocation. Download the
+`windows-agent` artifact for the installer and JSON evidence. Windows CI is a
+Windows Server environment; it is not a substitute for a final Windows 10/11 reboot.
+
+Run it yourself from elevated PowerShell with `./scripts/windows-e2e.ps1`. It uses
+a temporary trusted localhost certificate and cleans up its own service and data.
+Use a disposable test machine: the script installs and removes the `SquashRmm`
+service. For a live AI run, set the `ANTHROPIC_API_KEY` Actions secret and
+`ANTHROPIC_MODEL` repository variable, then dispatch the workflow again.
+
+```sh
+python scripts/package-source.py
+# Optional video rendering dependencies (not needed to run the RMM):
+python -m pip install Pillow imageio-ffmpeg
+python tools/render_demo.py artifacts/windows-e2e/demo-events.json artifacts/demo.mp4
+```
+
+The MP4 is labeled as a replay of recorded CI evidence; missing live-AI evidence
+is shown as pending rather than represented as a completed demo.
