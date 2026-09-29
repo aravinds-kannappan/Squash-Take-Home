@@ -23,4 +23,6 @@ explicitly labeled replay from recorded Windows CI commands and results. An actu
 Windows 10/11 reboot still needs a suitable VM and is not claimed by these tests.
 See CI evidence and the session handoff for measured results. Work spanned the
 initial build session plus the subsequent audit/CI iteration; Git commit timestamps
-provide the recorded implementation timeline.
+provide the recorded implementation timeline. Rough elapsed time was about 50
+minutes from the initial source files to the Windows acceptance evidence,
+including CI waits and the pause between the initial build and follow-up audit.

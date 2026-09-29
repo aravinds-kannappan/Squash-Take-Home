@@ -180,6 +180,9 @@ See [design notes](docs/architecture.md), [threat model](docs/threat-model.md),
 [demo script](docs/demo-script.md), [build notes](docs/how-built.md), and the
 [requirement-by-requirement audit](docs/requirements.md).
 
+The [validation report](docs/validation.md) records actual Windows results and
+distinguishes the passing core acceptance from the blocked live OpenRouter demo.
+
 ## Automated Windows acceptance and submission artifacts
 
 GitHub Actions runs the full suite on Linux and Windows, then installs the actual

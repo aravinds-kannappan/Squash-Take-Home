@@ -2,6 +2,9 @@
 
 Source: https://squash.ai/interview-projects/ai-native-rmm
 
+See [observed validation results](validation.md) for test counts, actual Windows
+timings, and the live-provider authentication blocker.
+
 This table separates implementation from demonstration. Optional extra credit is
 not necessary for the requested core. The product intentionally has no dashboard,
 chat UI, approval workflow, patch management, antivirus, or remote desktop.
