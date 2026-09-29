@@ -161,14 +161,14 @@ try {
     Record 'Measured Windows execution latency' '20 sequential PowerShell executions through HTTPS API' $stats
     Assert ($stats.p95Ms -le 2000) "P95 latency exceeded 2 seconds: $($stats.p95Ms) ms"
 
-    $hasLlm = [bool]($env:OPENROUTER_API_KEY -or ($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL))
+    $hasLlm = [bool]($env:OPENAI_API_KEY -or $env:OPENROUTER_API_KEY -or ($env:ANTHROPIC_API_KEY -and $env:ANTHROPIC_MODEL))
     $aiPassed = $false
     if ($hasLlm) {
         python "$root/tools/rmm.py" ai --device $id --problem 'Why does this machine feel slow?' | Tee-Object "$evidence/ai-transcript.txt"
         $aiPassed = $LASTEXITCODE -eq 0
         if ($aiPassed) { Record 'Live AI investigation' 'python tools/rmm.py ai --device DEVICE --problem ...' (Get-Content "$evidence/ai-transcript.txt" -Raw) }
         else { Record 'Live AI provider rejected the request' 'python tools/rmm.py ai --device DEVICE --problem ...' @{completed=$false;error='See provider HTTP status in workflow logs; no AI result is claimed.'} }
-    } else { Record 'Live AI demo pending credentials' 'OPENROUTER_API_KEY or Anthropic credentials required' @{executed=$false} }
+    } else { Record 'Live AI demo pending credentials' 'OPENAI_API_KEY, OPENROUTER_API_KEY or Anthropic credentials required' @{executed=$false} }
     $null = Api "/v1/devices/$id/revoke" Post
     $revoked = Wait-Online $id $false
     Assert $revoked.revoked 'Revocation did not persist'

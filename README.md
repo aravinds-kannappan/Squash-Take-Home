@@ -129,7 +129,7 @@ termination; read `result.error`. Ambiguous execution is never automatically ret
 Python 3.10+; no pip packages required:
 
 Copy `.env.example` to `.env` in the repository root and fill in
-`OPENROUTER_API_KEY`, `RMM_API_KEY`, and `RMM_URL` locally. `.env` and `.env.*`
+`OPENAI_API_KEY` (or `OPENROUTER_API_KEY`), `RMM_API_KEY`, and `RMM_URL` locally. `.env` and `.env.*`
 are git-ignored (except the credential-free `.env.example`) and excluded from
 Docker build contexts. On macOS/Linux, run `chmod 600 .env`.
 Never paste real keys into scripts, README examples, or commits.
@@ -157,9 +157,16 @@ python tools/rmm.py ai --device DEVICE_ID --problem 'Why does this machine feel 
 
 The deterministic diagnosis inspects memory, chooses CPU or memory ranking based
 on that result, then inspects the selected process. Each step prints elapsed time.
-The AI driver uses OpenRouter tool calls, with six executions and ten turns maximum.
+The AI driver supports direct OpenAI GPT via the Responses API, OpenRouter, and
+Anthropic, with six executions and ten turns maximum. A populated `OPENAI_API_KEY`
+takes priority over OpenRouter. The default OpenAI model is `gpt-6-astra`; override
+it with `OPENAI_MODEL`. Set the key in local `.env` or the environment and use the
+same `python tools/rmm.py ai --device DEVICE_ID` command. A ChatGPT/Codex login is
+not an API key. The driver uses `store=false` and retains conversation state only
+in memory; normal provider data policies still apply. Provider failures are not
+silently routed to another provider.
 Direct Anthropic is also supported with `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`
-when `OPENROUTER_API_KEY` is absent.
+when both OpenAI and OpenRouter keys are absent.
 Its read-only instruction is a prompt, **not a security sandbox**. Use a disposable
 VM. Endpoint results sent to the LLM may contain sensitive device data; the calling
 application owns provider/privacy policy and approvals.
@@ -222,8 +229,11 @@ Windows Server environment; it is not a substitute for a final Windows 10/11 reb
 Run it yourself from elevated PowerShell with `./scripts/windows-e2e.ps1`. It uses
 a temporary trusted localhost certificate and cleans up its own service and data.
 Use a disposable test machine: the script installs and removes the `SquashRmm`
-service. For a live AI run, set the `OPENROUTER_API_KEY` Actions secret (optionally
-`OPENROUTER_MODEL` as a repository variable), then dispatch the workflow again.
+service. For a live GPT run, set the `OPENAI_API_KEY` Actions secret (optionally
+`OPENAI_MODEL` as a repository variable), then dispatch the workflow again.
+OpenRouter remains available using `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`.
+The direct GPT loop is tested with offline fixtures; no successful live GPT run
+is claimed until a valid OpenAI API credential is configured.
 
 ```sh
 python scripts/package-source.py

@@ -15,6 +15,55 @@ spec.loader.exec_module(rmm)
 
 
 class DriverTests(unittest.TestCase):
+    def test_openai_loop_preserves_reasoning_and_untrusted_results(self):
+        reasoning = {"type": "reasoning", "id": "r1", "summary": [], "encrypted_content": "opaque"}
+        answers = [
+            {"status": "completed", "output": [reasoning, {"type": "function_call", "call_id": "c1", "name": "run_diagnostic", "arguments": '{"script":"Get-Process"}'}]},
+            {"status": "completed", "output": [{"type": "message", "content": [{"type": "output_text", "text": "Finding supported by abc."}]}]},
+        ]
+        requests = []
+        def provider(request, **kwargs):
+            self.assertEqual(request.full_url, "https://api.openai.com/v1/responses")
+            requests.append(json.loads(request.data))
+            return io.BytesIO(json.dumps(answers.pop(0)).encode())
+        class Endpoint:
+            def execute(self, device, script):
+                return {"id": "abc", "status": "succeeded", "result": {"stdout": "observation"}}, 123
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "offline-test", "OPENROUTER_API_KEY": "expired", "OPENAI_MODEL": "test-model"}, clear=True), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
+            rmm.ai_driver(Endpoint(), "device", "Investigate")
+        self.assertFalse(requests[0]["store"])
+        self.assertFalse(requests[0]["parallel_tool_calls"])
+        self.assertEqual(requests[0]["model"], "test-model")
+        self.assertIn(reasoning, requests[1]["input"])
+        result = requests[1]["input"][-1]
+        self.assertEqual(result["call_id"], "c1")
+        self.assertEqual(json.loads(result["output"])["untrustedEndpointData"]["stdout"], "observation")
+
+    def test_openai_rejects_uninvestigated_or_incomplete_reports(self):
+        for answer in [{"status": "incomplete", "output": []}, {"status": "completed", "output": []}]:
+            with self.subTest(answer=answer), patch.dict(os.environ, {"OPENAI_API_KEY": "offline-test"}), patch.object(rmm.urllib.request, "urlopen", return_value=io.BytesIO(json.dumps(answer).encode())):
+                with self.assertRaises(RuntimeError):
+                    rmm.openai_driver(None, "device", "Investigate")
+
+    def test_openai_enforces_six_execution_budget(self):
+        calls = [{"type": "function_call", "call_id": str(i), "name": "run_diagnostic", "arguments": '{"script":"Get-Process"}'} for i in range(7)]
+        answers = [{"status": "completed", "output": calls}, {"status": "completed", "output": [{"type": "message", "content": [{"type": "output_text", "text": "Report abc"}]}]}]
+        requests = []
+        def provider(request, **kwargs):
+            requests.append(json.loads(request.data))
+            return io.BytesIO(json.dumps(answers.pop(0)).encode())
+        class Endpoint:
+            count = 0
+            def execute(self, device, script):
+                self.count += 1
+                return {"id": "abc", "status": "succeeded", "result": {}}, 1
+        endpoint = Endpoint()
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "offline-test"}), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
+            rmm.openai_driver(endpoint, "device", "Investigate")
+        self.assertEqual(endpoint.count, 6)
+        self.assertEqual(requests[-1]["tool_choice"], "none")
+        self.assertIn("error", json.loads(requests[-1]["input"][-1]["output"]))
+
     def test_env_loads_literals_and_quoted_values(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
             path = Path(directory) / ".env"
@@ -48,7 +97,7 @@ class DriverTests(unittest.TestCase):
         class Endpoint:
             def execute(self, device, script):
                 return {"id": "abc", "status": "succeeded", "result": {"stdout": "observation"}}, 123
-        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "offline-test-placeholder"}), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "", "OPENROUTER_API_KEY": "offline-test-placeholder"}), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
             rmm.ai_driver(Endpoint(), "device", "Investigate")
         self.assertEqual(requests[1]["messages"][-1]["role"], "tool")
         self.assertEqual(requests[1]["messages"][-1]["tool_call_id"], "call_1")
@@ -70,7 +119,7 @@ class DriverTests(unittest.TestCase):
                 return {"id": "abc", "status": "succeeded", "result": {"stdout": "untrusted endpoint output"}}, 123
 
         endpoint = Endpoint()
-        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "", "ANTHROPIC_API_KEY": "offline-test-placeholder", "ANTHROPIC_MODEL": "offline-test-model"}), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "", "OPENROUTER_API_KEY": "", "ANTHROPIC_API_KEY": "offline-test-placeholder", "ANTHROPIC_MODEL": "offline-test-model"}), patch.object(rmm.urllib.request, "urlopen", provider), contextlib.redirect_stdout(io.StringIO()):
             rmm.ai_driver(endpoint, "device", "Why is this machine slow?")
         self.assertEqual(endpoint.calls, [("device", "Get-Process | Select-Object -First 1")])
         tool_result = requests[1]["messages"][-1]["content"][0]
