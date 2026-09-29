@@ -7,7 +7,7 @@ using Squash.Contracts;
 
 namespace Squash.Agent;
 
-public record LedgerEntry(JobPayload Job, ExecutionResult? Result);
+public record LedgerEntry(JobPayload Job, ExecutionResult? Result, bool Acknowledged = false);
 public sealed class AgentWorker(AgentConfig config, Identity identity, string directory, ILogger<AgentWorker> log) : BackgroundService
 {
     readonly SemaphoreSlim sendGate = new(1);
@@ -57,11 +57,24 @@ public sealed class AgentWorker(AgentConfig config, Identity identity, string di
             foreach (var file in Directory.EnumerateFiles(Path.Combine(directory, "ledger"), "*.json"))
             {
                 var entry = JsonSerializer.Deserialize<LedgerEntry>(File.ReadAllText(file), Protocol.Json)!;
-                if (entry.Result is not null) await Send(ws, new Wire("result", JobId: entry.Job.Id, Result: entry.Result), connection.Token);
+                if (entry.Result is not null && !entry.Acknowledged) await Send(ws, new Wire("result", JobId: entry.Job.Id, Result: entry.Result), connection.Token);
             }
             while (!connection.IsCancellationRequested)
             {
-                var message = await Protocol.Receive(ws, connection.Token); if (message is null) break;
+                using var idle = CancellationTokenSource.CreateLinkedTokenSource(connection.Token);
+                idle.CancelAfter(TimeSpan.FromSeconds(25));
+                var message = await Protocol.Receive(ws, idle.Token); if (message is null) break;
+                if (message.Type == "pong") continue;
+                if (message.Type == "result_ack" && Guid.TryParseExact(message.JobId, "N", out _))
+                {
+                    var path = Ledger(message.JobId!);
+                    if (File.Exists(path))
+                    {
+                        var saved = JsonSerializer.Deserialize<LedgerEntry>(File.ReadAllText(path), Protocol.Json)!;
+                        if (saved.Result is not null) DurableFile.Write(path, saved with { Acknowledged = true });
+                    }
+                    continue;
+                }
                 if (message.Type != "execute" || message.Payload is null || message.Signature is null || !Protocol.Verify(config.ServerPublicKey, message.Payload, message.Signature))
                     throw new InvalidDataException("Untrusted dispatch.");
                 var job = JsonSerializer.Deserialize<JobPayload>(message.Payload, Protocol.Json) ?? throw new InvalidDataException("Invalid job.");

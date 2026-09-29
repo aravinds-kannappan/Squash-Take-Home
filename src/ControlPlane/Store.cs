@@ -12,7 +12,9 @@ public sealed class Store : IDisposable
     public Store(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        db = new SqliteConnection($"Data Source={path}");
+        // This store owns one long-lived connection; pooling would retain file
+        // handles after shutdown (notably preventing cleanup/reinstall on Windows).
+        db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString());
         db.Open();
         Run("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;");
         Run("""

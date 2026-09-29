@@ -57,17 +57,21 @@ public sealed class AgentHub(Store store, ServerKey key, ResultRedactor redactor
                 var message = await Protocol.Receive(socket, idle.Token); if (message is null) break;
                 if (store.Device(id) is not { Revoked: false } current || current.PublicKey != d.PublicKey) break;
                 session.LastSeen = DateTimeOffset.UtcNow; store.Seen(id);
-                if (message.Type == "started" && message.JobId is { } started) store.Started(started, id);
+                if (message.Type == "heartbeat") await session.Send(new Wire("pong"), idle.Token);
+                else if (message.Type == "started" && message.JobId is { } started) store.Started(started, id);
                 else if (message.Type == "result" && message.JobId is { } jobId && message.Result is { } result)
                 {
                     if (result.Stdout is null || result.Stderr is null || Encoding.UTF8.GetByteCount(result.Stdout) > Protocol.MaxOutputBytes || Encoding.UTF8.GetByteCount(result.Stderr) > Protocol.MaxOutputBytes ||
                         result.Error?.Length > 512 || result.DurationMs < 0 || !new[] { "succeeded", "failed", "timed_out", "interrupted" }.Contains(result.Status))
                         throw new InvalidDataException("Invalid execution result.");
                     store.Complete(jobId, redactor.Clean(result), id);
+                    // Acknowledge even a late/replayed result if this is the assigned device.
+                    if (store.Job(jobId) is { } saved && saved.DeviceId == id && saved.ScriptSha256 == result.ScriptSha256 && States.Terminal.Contains(saved.Status))
+                        await session.Send(new Wire("result_ack", JobId: jobId), idle.Token);
                 }
             }
         }
-        catch (Exception e) when (e is WebSocketException or OperationCanceledException or InvalidDataException or JsonException or ArgumentException) { }
+        catch (Exception e) when (e is WebSocketException or OperationCanceledException or IOException or JsonException or ArgumentException) { }
         finally
         {
             if (id is not null && session is not null) ((ICollection<KeyValuePair<string, Session>>)sessions).Remove(new(id, session));
